@@ -1,0 +1,49 @@
+{% extends "layout.html" %}
+{% block content %}
+    <h1>Settings:</h1>
+        <article class="media content-section">
+          <div class="media-body">
+              <form method ="POST" class = "grid" action = {{ url_val }}>
+                {% if edit %}
+                  <div class="mb-3">
+                    <label for="exampleFormControlInput1" class="form-label">Hubitat Access Token: </label>
+                    <input type = "text" class="form-control" name = 'token' value = {{ token }} placeholder='ex. e27023c9-58e1-4439-8785-7ea7d9219d4a'>
+                  </div>
+                  <div class="mb-3">
+                    <label for="exampleFormControlTextarea1" class="form-label">Maker API URL</label>
+                    <input type = "text" class="form-control" name = 'apiURL' value = {{ apiURL }} placeholder='https://[hub-ip-address-or-hostname]/apps/api/[app-id]'>
+                  </div>
+                  <button type = "submit" value = "save" name = "action1" class = "btn btn-primary">Save</button>
+                {% else %}
+                  <div class="mb-3">
+                    <label for="exampleFormControlInput1" class="form-label">Hubitat Access Token: </label>
+                    <p>{{ token }}</p>
+                  </div>
+                  <div class="mb-3">
+                    <label for="exampleFormControlTextarea1" class="form-label">Maker API URL</label>
+                    <p>{{ apiURL }}</p>
+                  </div>
+                  {% if devices|length %}
+                    <div class="alert alert-success d-flex align-items-center" role="alert">
+                      <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Success:"><use xlink:href="#check-circle-fill"/></svg>
+                      <div>
+                        Succesfully connected to Maker API!
+                      </div>
+                    </div>
+                  {% endif %}
+                  
+                  {% if disconnected %}
+                    <div class="alert alert-danger d-flex align-items-center" role="alert">
+                      <svg class="bi flex-shrink-0 me-2" width="24" height="24" role="img" aria-label="Danger:"><use xlink:href="#exclamation-triangle-fill"/></svg>
+                      <div>
+                        Cannot connect to Maker API. Check if device is connected.
+                      </div>
+                    </div>
+                  {% endif %}
+                {% endif %}
+                <button type = "submit" value = "edit" name = "action2" class = "btn btn-primary">Edit</button>
+              </form>
+              <a class="mb-3" href="/api-info">How to get URL and Access Token?</a>
+          </div>
+        </article>
+{% endblock content %}

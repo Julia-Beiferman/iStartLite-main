@@ -1,0 +1,173 @@
+{% extends "layout.html" %}
+{% block content %}
+
+<body>
+
+
+    <main role="main" class="container">
+      <div class="row">
+        <div class="col-md-7">
+          <h1>{{ tester.label }} &nbsp</h1>
+          <article class="media content-section">
+            <div class="media-body">
+              <div class="article-metadata">
+                <h2>Controls</h2>
+              </div>
+                  <form method ="POST" class = "grid">
+                    <button type = "submit" value = "onButton" name = "onButton" class = "btn btn-primary" onclick = "update()">On</button>
+                    <button type = "submit" value = "offButton" name = "offButton" class = "btn btn-primary" onclick = "update()">Off</button>
+                    <button type = "submit" value = "restartButton" name = "restartButton" class = "btn btn-primary" onclick = "update()">Restart</button> 
+                  </form>
+            </div>
+          </article>
+          <article class="media content-section">
+            <div class="media-body">
+              <div class="article-metadata">
+                <h2>Tester IP</h2>
+              </div>
+
+              <script>
+
+                function updateIP(){
+                 var ipaddr = document.getElementById("ipInput");
+                 var ipaddrval = ipaddr.value.toString();
+                 var urlIP = "/setip/" + tester.label + "/" + ipaddrval;
+                  $.get(urlIP, function(data) {
+
+                   //$('#time').html(data);    // update page with new data
+                  });
+                 return urlIP
+                }
+              </script>
+
+                  <form method = "POST" class = "grid" >
+                      <div class="input-group">
+                      <input type = "text" class="form-control" id= ipInput name = 'testerIP' value = {{ tester.IP }}>
+                      <span class="input-group-btn">
+                        <button type = "submit" value = "setIP" name = "setIP" class = "btn btn-primary" onclick = "updateIP()">Save</button>
+                      </span>
+                    </div>
+                  </form>
+            </div>
+          </article>
+
+          <article class="media content-section">
+            <div class="article-metadata">
+              <h2>History</h2>
+            </div>
+              {% set log_url = "/logs/" + devpage | replace(" ", "%20") %}
+              <a class="mb-3" href= {{ log_url }}>{{ devpage }}</a><p></p>
+
+              {% for key in tester.logkeys %}
+              {% set key_url = "/logs/" + devpage | replace(" ", "%20") + "/" + key | replace(" ", "%20") %}
+              <a class="mb-3" href= {{ key_url }}>{{ key }}</a><p></p>
+              {% endfor %}
+          </article>
+
+
+
+              <div class = "accordion" id="accordion2">
+                <div class="accordion-item">
+                  <h2 class="accordion-header" id="headingTwo">
+                    <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#collapseTwo" aria-expanded="false" aria-controls="collapseTwo">
+                      <h2>Advanced</h2>
+                    </button>
+                  </h2>
+                  <div id="collapseTwo" class="accordion-collapse collapse" aria-labelledby="headingTwo" data-bs-parent="#accordion2">
+                    <div class="accordion-body">
+                      <a>Restart Delay: </a>
+                      <form method = "POST" class = "grid" action = {{ url_val }}>
+                        <div class="input-group mb-3">
+                          <input type = "text" class="form-control" name = 'restartDelay' value = {{ tester.delay }}>
+                          <span class="input-group-text" id="basic-addon2">seconds</span>
+                        </div>
+                        <p></p>
+                        <button type = "submit" value = "restartDelay" name = "restartDelay" class = "btn btn-primary">Submit</button>
+                      </form>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+
+          
+        </div>
+        <div class="col-md-3">
+          <h1>&nbsp</h1>
+          <div class="content-section">
+            <h3>Tester Status</h3>
+            <p class='text-muted'>
+              <ul class="list-group">
+                <li class="list-group-item list-group-item-light"> System is: 
+                  <span class="badge rounded-pill text-bg-warning" id="testerStatus">PENDING...</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" id = "statusArrow" fill="white" class="bi bi-arrow-down" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" id = arrowPath d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+                  </svg>
+                </li>
+                <li class="list-group-item list-group-item-light">Executing Command:
+                  <span class="badge rounded-pill badge-primary">{{ tester.command }}</span>
+                </li>
+                <i class="bi bi-arrow-down"></i>
+              </ul>
+            </p>
+          </div>
+
+          <div class="content-section">
+            <h3>Hubitat</h3>
+            <li class="list-group-item list-group-item-light"> IP: http://192.168.0.100/</li>
+          </div>
+
+          <script type="text/javascript" src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
+          <script type="text/javascript">
+          (function worker() {
+            var dataURL = '/data/' + "{{ tester.label }}";
+            $.get(dataURL, function(data) {
+              $('#testerStatus').html(data);    // update page with new data
+              
+              if(data === "UP"){
+                $("#testerStatus").attr("class", "badge rounded-pill text-bg-success");
+                $("#statusArrow").attr("class", "bi bi-arrow-up");
+                $("#statusArrow").attr("fill", "green"); //fix this arrow path eventually so it points up
+                $("#arrowPath").attr("d", "M8 15a.5.5 0 0 0 .5-.5V2.707l3.146 3.147a.5.5 0 0 0 .708-.708l-4-4a.5.5 0 0 0-.708 0l-4 4a.5.5 0 1 0 .708.708L7.5 2.707V14.5a.5.5 0 0 0 .5.5z");
+              } else {
+                $("#testerStatus").attr("class", "badge rounded-pill text-bg-danger");
+                $("#statusArrow").attr("class", "bi bi-arrow-down");
+                $("#statusArrow").attr("fill", "red"); //fix this arrow path eventually so it points up
+                $("#arrowPath").attr("d", "M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z");
+              }
+
+              //maybe add progress bar here? so that 
+              setTimeout(worker, 1000); // run `worker()` again after 1000ms (1s)
+            });
+          })();
+          </script>
+
+          <script type="text/javascript" src="http://code.jquery.com/jquery-1.8.0.min.js"></script>
+          <script type="text/javascript">
+
+          var i = 0;
+          function update() {
+            if (i == 0) {
+              i = 1;
+              var elem = document.getElementById("myprogressBar");
+              var width = 1;
+              var id = setInterval(frame, 10);
+              function frame() {
+                if (width >= 100) {
+                  clearInterval(id);
+                  i = 0;
+                } else {
+                  width++;
+                  elem.style.width = width + "%";
+                }
+              }
+            }
+          }
+
+          </script>
+
+        </div>
+      </div>
+    </main>
+</body>
+{% endblock content %}
