@@ -23,9 +23,9 @@ from datetime import datetime
 from flask import Flask, render_template, request, render_template
 from pyhubitat import MakerAPI
 import time
-from multiprocessing import Process
 import pickle
-
+from concurrent.futures import ThreadPoolExecutor
+import threading
 
 testerStatus = {}
 id = 0
@@ -33,7 +33,12 @@ global accessToken
 global hubURL 
 global devices
 testers = []
+logdir = "C:/Users/Public/Documents/iStartLogs"
 
+
+#FIX THIS
+
+'''
 try:
     count = 0
     with open("/makerapiInfo/hubitatAccess.txt") as fp: #reads hubitat access token / url from a stored file so the user does not have to re-enter the values
@@ -44,9 +49,13 @@ try:
                 accessToken = line.strip()
             elif count == 2: 
                 hubURL = line.strip()
+    print(acessToken)
+    print(hubURL)
 except:
-    accessToken = '550b36df-a6ec-4f39-9f9e-2514ba844b14'
-    hubURL = 'https://192.168.0.100/apps/api/360'
+
+'''
+accessToken = '05bd79b6-5309-455b-9b8c-8ae67212afea'
+hubURL = 'http://192.168.0.113/apps/api/673'
 
 class Tester():
     def __init__(self, id, label, name, testerIP, command, status):
@@ -65,7 +74,9 @@ class Tester():
         self.logkeys = list(self.logpages.keys())
 
     def logHistory(self, command, time):
-        log = time + " command: " + command
+        testername = self.label
+        user = os.getlogin()
+        log = "User: " + user + " Tester: " + testername + " " + time +  " Command: " + command
         self.history.append(log)
 
     def recordLogPage(self, date, history):
@@ -80,22 +91,25 @@ class Tester():
 
 def pickleTester(testerName):
     tester = getTester(testerName)
-    dir = "testers/"+tester.label
-
+    path = tester.label.rstrip() #remove the trailing characters
+    dir = os.path.join(logdir, path)
+    print(dir)
+    
     try:
         os.mkdir(dir)
-        os.mkdir(dir+"/logs")
-
-    except:
+    except FileExistsError:
         pass
+
 
     #add all of the logs to a folder
     tester.getKeys()
     for key in tester.logkeys:
+        doc = key + ".txt"
+        print(dir + "/" + doc)
         try:
-            f = open(dir+"/logs/" + key + ".txt", "x")
-        except:
-            f = open(dir+"/logs/" + key + ".txt", "a") #append to the file if it exists
+            f = open(dir+"/"+doc, "x")
+        except FileExistsError:
+            f = open(dir+"/"+doc, "a") #append to the file if it exists
 
         for i in range (len(tester.logpages[key])):
             f.write(tester.logpages[key][i])
@@ -108,16 +122,19 @@ def pickleTester(testerName):
 
 
 def unpickleObjs(): #gets saved testers from the folder, so when the program is reloaded data about the testers is not lost, mostly just ip / log history
-    rootdir = "testers/"
+    rootdir = os.path.join(logdir, "/testers/")
     loads = []
 
-    for subdir in os.listdir(rootdir):
-        dir = "testers/" + subdir + "/" + subdir + ".pickle"
-        with open(dir, 'rb') as f:
-            loadedTester = pickle.load(f)
-            loads.append(loadedTester)
+    try:
+        for subdir in os.listdir(rootdir):
+            dir = rootdir + subdir + "/" + subdir + ".pickle"
+            with open(dir, 'rb') as f:
+                loadedTester = pickle.load(f)
+                loads.append(loadedTester)
+        return loads 
+    except:
 
-    return loads 
+        return loads 
     
 def reloadTesters(): #find ones that exist in local directory and replace them
     loads = unpickleObjs()
@@ -133,30 +150,40 @@ def reloadTesters(): #find ones that exist in local directory and replace them
 
 def createAPI(token, url):
     global testers
+
     try:
         ph = MakerAPI(token, url)
         devices = ph.list_devices() #returns dictionary of devices
         for device in devices:
             newDevice = Tester(device['id'], device['label'], device['name'], "", "OFF", "down")
             testers.append(newDevice)
-
+        
+        
         reloadTesters() #if the devices from makerAPI match what is stored locally, then used the old pickled classes to get data 
         return devices 
 
+        #SPECIFY THE TYPE OF EXCEPTION HERE INSTEAD OF IT BEING AMBIGIOUS
     except: #catch connection time out errors when we can't connect to MakerAPI
+        print("EXCEPTION")
         devices = None
         testers = []
         #newtester = Tester("3", "samplepickle", "samplepickle", "", "", "")
         #testers.append(newtester)
         return devices
-
- 
+        
 
 app = Flask(__name__)
 
 
 devices = createAPI(accessToken, hubURL)
+devices = []
 
+
+#FAKE TESTER FOR DEVELOPMENT PURPOSES
+devTester = Tester("1", "dev", "dev", "127.7.00.1", "None", "UP")
+devices.append(devTester)
+testers = []
+testers.append(devTester)
 @app.route("/")
 @app.route("/devices")
 def welcome():
@@ -209,6 +236,7 @@ def data(testerName):
 #ex. http://127.0.0.1:5000/set/4%20Relay%20iStart/ip=143.182.25.21/delayrestart=30/command=on
 #http://127.0.0.1:5000//set/4%20Relay%20iStart/onInterval=4/offInterval=4/cycles=2
 @app.route("/set/<testerName>/ip=<ipAddress>", defaults = {'command': None, 'restartInterval': None, 'cycles': None, 'onInterval': None, "offInterval": None})
+@app.route("/set/<testerName>/command=<command>", defaults = {'ip': None, 'restartInterval': None, 'cycles': None, 'onInterval': None, "offInterval": None})
 @app.route("/set/<testerName>/delayrestart=<restartInterval>/command=<command>", defaults = {'ipAddress': None, 'cycles': None, 'onInterval': None, "offInterval": None})
 @app.route("/set/<testerName>/ip=<ipAddress>/delayrestart=<restartInterval>/command=<command>", defaults = {'cycles': None, 'onInterval': None, "offInterval": None})
 @app.route("/set/<testerName>/ip=<ipAddress>/delayrestart=<restartInterval>/onInterval=<onInterval>/offInterval=<offInterval>/cycles=<cycles>",  defaults = {'command': None})
@@ -222,17 +250,23 @@ def configTester(testerName, ipAddress, restartInterval, command, onInterval, of
         tester.IP = ipAddress
     
     if restartInterval != None:
-        tester.delay = restartInterval
+        tester.delay = int(restartInterval)
 
     try:
         ph = MakerAPI(accessToken, hubURL)
 
         if cycles != None: #power cycling
-            for i in range (cycles-1):
+            cycles = int(cycles)
+            onInterval = int(onInterval)
+            offInterval = int(offInterval)
+            for i in range (0, cycles):
+                print(i)
                 ph.send_command(tester.id, "on")
-                time.delay(onInterval)
+                time.sleep(onInterval) 
+                print("JUST TURNED ON")
                 ph.send_command(tester.id, "off")
-                time.delay(offInterval)
+                time.sleep(offInterval)
+                print("JUST TURNED OFF")
             
             return f"{testerName} to run {cycles} cycles. On for {onInterval} seconds and off for {offInterval} seconds"
 
@@ -254,12 +288,37 @@ def configTester(testerName, ipAddress, restartInterval, command, onInterval, of
             tester.logHistory(tester.command, dt_string) #log event into history
     except:
         pass
+    
+    ennumStr = f"Set {testerName}\n IP: {ipAddress} Restart Delay: {tester.delay} seconds\n Executing Command: {tester.command} \n Power cycling to run {cycles} cycles. On for {onInterval} seconds and off for {offInterval} seconds"
+    return render_template('ennumpage.html', ennumStr = ennumStr) #maybe have this redirect to original tester page?
 
-    return f"set {testerName} ip to {ipAddress} and restart delay to {tester.delay} seconds\n executing command: {tester.command} \n Power cycling to run {cycles} cycles. On for {onInterval} seconds and off for {offInterval} seconds"
+
+def restartDev(tester, ph, devID, devpage):
+
+    print("STARTED TASK")
+    print(threading.current_thread().name)
+    #ph.send_command(devID, "off")  
+    time.sleep(tester.delay) #delay between off and on not asynchronous
+    #ph.send_command(devID, "on")
+
+    print("RESTART IS DONE")
+    tester.command = "NONE"
+    #return tester
+    return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
+
+
+def api_request(tester, ph, devID, command):
+    tester.command = command
+
+    ph.send_command(devID, command)
+    print("API Request is over")
+    tester.command = "NONE"
+
+    return tester
 
 
 @app.route("/devpage/<devpage>/<devID>/<command>", methods = ['GET', 'POST'])
-@app.route("/devpage/<devpage>/<devID>", defaults = {'command': None}, methods = ['GET', 'POST']) #maybe use URL for to fix urls with missing words because of spaces
+@app.route("/devpage/<devpage>/<devID>", defaults = {'command': None}, methods = ['GET', 'POST'])
 def user(devpage, devID, command):
     tester = getTester(devpage)
     now = datetime.now()
@@ -271,15 +330,20 @@ def user(devpage, devID, command):
         if request.method == 'POST':
             ph = MakerAPI(accessToken, hubURL)
             if request.form.get('onButton') == 'onButton': #action after each button is pushed
-                tester.command = "ON"
-                ph.send_command(devID, "on") #turn on the device
+                
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    for result in executor.map(api_request(tester, ph, devID, "on"), [i for i in range(5)]):
+                        tester = result
                 tester.logHistory(tester.command, dt_string) #log event into history
 
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
 
             elif request.form.get('offButton') == 'offButton':
-                tester.command = "OFF"
-                ph.send_command(devID, "off") #turn off the device
+                
+                with ThreadPoolExecutor(max_workers=5) as executor:
+                    for result in executor.map(api_request(tester, ph, devID, "off"), [i for i in range(5)]):
+                        tester = result
+
                 tester.logHistory(tester.command, dt_string) #log event into history
 
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
@@ -288,10 +352,9 @@ def user(devpage, devID, command):
                 tester.command = "RESTART"
                 tester.logHistory(tester.command, dt_string) #log event into history
 
-                ph.send_command(devID, "off")  
-                time.sleep(tester.delay) #delay between off and on
-                ph.send_command(devID, "on")
-                
+                threading.Thread(target = restartDev, args=[tester]).start()
+                #tester = threading.Thread(target = restartDev(tester))
+
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
 
             elif request.form.get('setIP') == 'setIP': #save the IP address then ping to get a response
@@ -343,10 +406,14 @@ def settings():
             f.write(accessToken+"\n"+hubURL) 
 
             devices = createAPI(accessToken, hubURL) #this also resets all the ip addresses
+            print("GET DEVICES")
+            print(accessToken)
+            print(hubURL)
+            print(devices)
             if(devices == None): #if the hubitat is not connected, don't define device
                 return render_template("settings.html", edit=edit,  apiURL=hubURL, token=accessToken, disconnected="true")
             else:
-                return render_template("settings.html", edit=edit, apiURL=hubURL, token=accessToken, devices=devices)
+                return render_template("settings.html", edit=edit, apiURL=hubURL, token=accessToken, devices=devices, disconnected="false")
                 
         if request.form.get('action2') == 'edit':
             edit = True            
@@ -374,17 +441,15 @@ def logs(device, logkey):
     tester.getKeys()
     now = datetime.now()
     dt_string = now.strftime("%m-%d-%Y %H:%M")
+    user = os.getlogin()
 
     if(logkey == None):
         history = tester.history
 
-        if request.method == 'POST':
-            if request.form.get("createNew") == 'createNew':
-                tester.recordLogPage(dt_string, history)
-                tester.history = [] #clear history for new page
-                pickleTester(tester.label) #save the tester info locally
-                return render_template("logs.html", device=device, history=history, tester=tester, place="first")
-        return render_template("logs.html", device=device, history=history, tester=tester, place="first")
+        tester.recordLogPage(dt_string, history)
+        #tester.history = [] #clear history for new page
+        pickleTester(tester.label) #save the tester info locally
+        return render_template("logs.html", device=device, history=history, tester=tester)
     else:
         history = tester.logpages[logkey]
         return render_template("logs.html", device=device, history=history, tester=tester)

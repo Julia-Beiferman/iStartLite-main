@@ -1,0 +1,12 @@
+10/31/2022 11:08:49 User: jbeiferm Tester: HDBI10027 Command: RESTART
+10/31/2022 11:09:07 User: jbeiferm Tester: HDBI10027 Command: OFF
+10/31/2022 11:09:08 User: jbeiferm Tester: HDBI10027 Command: ON
+10/31/2022 11:09:11 User: jbeiferm Tester: HDBI10027 Command: OFF
+10/31/2022 11:09:18 User: jbeiferm Tester: HDBI10027 Command: RESTART
+10/31/2022 11:09:20 User: jbeiferm Tester: HDBI10027 Command: RESTART
+10/31/2022 11:08:49 User: jbeiferm Tester: HDBI10027 Command: RESTART
+10/31/2022 11:09:07 User: jbeiferm Tester: HDBI10027 Command: OFF
+10/31/2022 11:09:08 User: jbeiferm Tester: HDBI10027 Command: ON
+10/31/2022 11:09:11 User: jbeiferm Tester: HDBI10027 Command: OFF
+10/31/2022 11:09:18 User: jbeiferm Tester: HDBI10027 Command: RESTART
+10/31/2022 11:09:20 User: jbeiferm Tester: HDBI10027 Command: RESTART
