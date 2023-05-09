@@ -11,11 +11,15 @@
               <div class="article-metadata">
                 <h2>Controls</h2>
               </div>
-                  <form method ="POST" class = "grid">
-                    <button type = "submit" value = "onButton" name = "onButton" class = "btn btn-primary" onclick = "update()">On</button>
-                    <button type = "submit" value = "offButton" name = "offButton" class = "btn btn-primary" onclick = "update()">Off</button>
-                    <button type = "submit" value = "restartButton" name = "restartButton" class = "btn btn-primary" onclick = "update()">Restart</button> 
+              
+                  <form method ="POST">
+                    <div class="btn-group d-flex w-100 gap-2" role="group" aria-label="..."> 
+                      <button type = "submit" value = "onButton" name = "onButton" class = "btn btn-primary" onclick = "update()">On</button>
+                      <button type = "submit" value = "offButton" name = "offButton" class = "btn btn-primary" onclick = "update()">Off</button>
+                      <button type = "submit" value = "restartButton" name = "restartButton" class = "btn btn-primary" onclick = "update()">Restart</button> 
+                    </div>
                   </form>
+              
             </div>
           </article>
           <article class="media content-section">
@@ -38,6 +42,8 @@
                 }
               </script>
 
+
+                <!-- FORM TO GET TESTER IP FROM USER-->
                   <form method = "POST" class = "grid" >
                       <div class="input-group">
                       <input type = "text" class="form-control" id= ipInput name = 'testerIP' value = {{ tester.IP }}>
@@ -97,11 +103,28 @@
             <p class='text-muted'>
               <ul class="list-group">
                 <li class="list-group-item list-group-item-light"> System is: 
-                  <span class="badge rounded-pill text-bg-warning" id="testerStatus">PENDING...</span>
+
+                  {% if tester.status == "up" %}
+                  <span class="badge rounded-pill text-bg-success" id="testerStatus">UP</span>
                   <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" id = "statusArrow" fill="white" class="bi bi-arrow-down" viewBox="0 0 16 16">
                     <path fill-rule="evenodd" id = arrowPath d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
                   </svg>
+                  {% elif tester.status == "down" %}
+                  <span class="badge rounded-pill text-bg-danger" id="testerStatus">DOWN</span>
+                  <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" id = "statusArrow" fill="white" class="bi bi-arrow-down" viewBox="0 0 16 16">
+                    <path fill-rule="evenodd" id = arrowPath d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+                  </svg>
+                  {% else %}
+                    <span class="badge rounded-pill text-bg-warning" id="testerStatus">PENDING</span>
+                    <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" id = "statusArrow" fill="white" class="bi bi-arrow-down" viewBox="0 0 16 16">
+                      <path fill-rule="evenodd" id = arrowPath d="M8 1a.5.5 0 0 1 .5.5v11.793l3.146-3.147a.5.5 0 0 1 .708.708l-4 4a.5.5 0 0 1-.708 0l-4-4a.5.5 0 0 1 .708-.708L7.5 13.293V1.5A.5.5 0 0 1 8 1z"/>
+                    </svg>
+                  {% endif %}
+
+                  
                 </li>
+
+
                 <li class="list-group-item list-group-item-light">Executing Command:
                   <span class="badge rounded-pill badge-primary">{{ tester.command }}</span>
                 </li>
@@ -122,7 +145,7 @@
             $.get(dataURL, function(data) {
               $('#testerStatus').html(data);    // update page with new data
               
-              if(data === "UP"){
+              if(data === "up"){
                 $("#testerStatus").attr("class", "badge rounded-pill text-bg-success");
                 $("#statusArrow").attr("class", "bi bi-arrow-up");
                 $("#statusArrow").attr("fill", "green"); //fix this arrow path eventually so it points up

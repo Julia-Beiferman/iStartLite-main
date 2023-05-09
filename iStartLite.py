@@ -1,6 +1,7 @@
 # File    : iStartLite.py 
 # Author  : Julia Beiferman
-# Version : 1.0  6/6/2022
+# Version : 2.0  5/9/2023
+
 '''
 Description:
     Python Flask application to provide a GUI/webpage for the iStartLite. Have all packages installed in the same folder and follow configuration guide on the 'About' page.
@@ -15,6 +16,14 @@ Description:
     ex.
     http://127.0.0.1:5000/set/4%20Relay%20iStart/ip=143.182.25.21/delayrestart=30/command=on
     http://127.0.0.1:5000//set/4%20Relay%20iStart/onInterval=4/offInterval=4/cycles=2
+
+
+    Version 2.0:
+    - Threading to mangage calling MakerAPI while running webpage
+    - Logging system to record testers / history actions done on webpage through python pickle
+    - Tester History, IP, etc are stored on local computer in Public Documents folder
+    - Fixed Pinging System
+    - Added iStart 1 & 2 links
     
 '''
 
@@ -34,6 +43,11 @@ global hubURL
 global devices
 testers = []
 logdir = "C:/Users/Public/Documents/iStartLogs"
+
+try:
+    os.mkdir(logdir)
+except FileExistsError:
+    pass
 
 
 #FIX THIS
@@ -117,24 +131,36 @@ def pickleTester(testerName):
 
     filename = dir + "/" + tester.label + ".pickle"
 
+    #write a readable file that has the same contents as pickle
+    try: 
+        readable = open(dir + "/" + tester.label + "_readable.txt", "x")
+    except FileExistsError:
+        readable = open(dir + "/" + tester.label + "_readable.txt", "a") # append to file if it already exists
+
+    readable.write(str(tester))
+
     with open(filename, 'wb') as handle:
         pickle.dump(tester, handle, pickle.HIGHEST_PROTOCOL)
 
 
 def unpickleObjs(): #gets saved testers from the folder, so when the program is reloaded data about the testers is not lost, mostly just ip / log history
-    rootdir = os.path.join(logdir, "/testers/")
+    rootdir = os.path.join(logdir)
     loads = []
 
     try:
         for subdir in os.listdir(rootdir):
-            dir = rootdir + subdir + "/" + subdir + ".pickle"
-            with open(dir, 'rb') as f:
-                loadedTester = pickle.load(f)
-                loads.append(loadedTester)
+            dir = os.path.join(rootdir, subdir, subdir + ".pickle")
+            print(dir)
+            try:
+                with open(dir, 'rb') as f:
+                    loadedTester = pickle.load(f)
+                    loads.append(loadedTester)
+            except FileNotFoundError:
+                continue
         return loads 
-    except:
-
-        return loads 
+    except FileNotFoundError:
+        print("File NOT FOUND during unpickle")
+        
     
 def reloadTesters(): #find ones that exist in local directory and replace them
     loads = unpickleObjs()
@@ -155,7 +181,7 @@ def createAPI(token, url):
         ph = MakerAPI(token, url)
         devices = ph.list_devices() #returns dictionary of devices
         for device in devices:
-            newDevice = Tester(device['id'], device['label'], device['name'], "", "OFF", "down")
+            newDevice = Tester(device['id'], device['label'], device['name'], "", "OFF", "pending")
             testers.append(newDevice)
         
         
@@ -180,10 +206,12 @@ devices = []
 
 
 #FAKE TESTER FOR DEVELOPMENT PURPOSES
-devTester = Tester("1", "dev", "dev", "127.7.00.1", "None", "UP")
-devices.append(devTester)
-testers = []
-testers.append(devTester)
+#devTester = Tester("1", "dev", "dev", "127.7.00.1", "None", "UP")
+#devices.append(devTester)
+#testers = []
+#testers.append(devTester)
+
+
 @app.route("/")
 @app.route("/devices")
 def welcome():
@@ -225,10 +253,10 @@ def data(testerName):
     state = pingTester(tester.IP, tester)
 
     if(state):
-        tester.status = "UP"
+        tester.status = "up"
         return tester.status
     else:
-        tester.status = "DOWN"
+        tester.status = "down"
         return tester.status
 
 
@@ -286,32 +314,27 @@ def configTester(testerName, ipAddress, restartInterval, command, onInterval, of
                 ph.send_command(tester.id, "on")
 
             tester.logHistory(tester.command, dt_string) #log event into history
-    except:
+    except TypeError:
         pass
     
     ennumStr = f"Set {testerName}\n IP: {ipAddress} Restart Delay: {tester.delay} seconds\n Executing Command: {tester.command} \n Power cycling to run {cycles} cycles. On for {onInterval} seconds and off for {offInterval} seconds"
     return render_template('ennumpage.html', ennumStr = ennumStr) #maybe have this redirect to original tester page?
 
 
-def restartDev(tester, ph, devID, devpage):
+def restartDev(tester, ph, devID):
 
-    print("STARTED TASK")
-    print(threading.current_thread().name)
-    #ph.send_command(devID, "off")  
+    ph.send_command(devID, "off")  
     time.sleep(tester.delay) #delay between off and on not asynchronous
-    #ph.send_command(devID, "on")
+    ph.send_command(devID, "on")
 
-    print("RESTART IS DONE")
     tester.command = "NONE"
     #return tester
-    return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
+    return tester
 
 
 def api_request(tester, ph, devID, command):
-    tester.command = command
 
     ph.send_command(devID, command)
-    print("API Request is over")
     tester.command = "NONE"
 
     return tester
@@ -326,11 +349,12 @@ def user(devpage, devID, command):
     tester.getKeys()
 
     try:
-
         if request.method == 'POST':
             ph = MakerAPI(accessToken, hubURL)
+
             if request.form.get('onButton') == 'onButton': #action after each button is pushed
-                
+                #tester.command = "ON"
+
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for result in executor.map(api_request(tester, ph, devID, "on"), [i for i in range(5)]):
                         tester = result
@@ -339,6 +363,7 @@ def user(devpage, devID, command):
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
 
             elif request.form.get('offButton') == 'offButton':
+                #tester.command = "OFF"
                 
                 with ThreadPoolExecutor(max_workers=5) as executor:
                     for result in executor.map(api_request(tester, ph, devID, "off"), [i for i in range(5)]):
@@ -348,19 +373,24 @@ def user(devpage, devID, command):
 
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
 
+
+
             elif request.form.get('restartButton') == 'restartButton': #restart the device
                 tester.command = "RESTART"
                 tester.logHistory(tester.command, dt_string) #log event into history
 
-                threading.Thread(target = restartDev, args=[tester]).start()
-                #tester = threading.Thread(target = restartDev(tester))
+                threading.Thread(target = restartDev, args=[tester, ph, devID]).start()
+                threading.Thread(target = restartDev(), args=[tester, ph, devID])
 
                 return render_template('home.html', devpage=devpage, devID=devID, tester=tester)
 
             elif request.form.get('setIP') == 'setIP': #save the IP address then ping to get a response
                 tester.IP = request.form.get('testerIP')
+                print(tester.IP)
                 pickleTester(tester.label)
                 pingTester(tester.IP, tester)
+
+                print(tester.status)
 
                 print("out of the pinger----------------") 
 
